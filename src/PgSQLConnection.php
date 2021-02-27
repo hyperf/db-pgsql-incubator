@@ -13,6 +13,7 @@ namespace Hyperf\DB\PgSQL;
 
 use Closure;
 use Hyperf\DB\AbstractConnection;
+use Hyperf\DB\Exception\QueryException;
 use Hyperf\Pool\Pool;
 use Psr\Container\ContainerInterface;
 use Swoole\Coroutine\PostgreSQL;
@@ -32,7 +33,7 @@ class PgSQLConnection extends AbstractConnection
         'host' => '127.0.0.1',
         'port' => 5432,
         'database' => 'hyperf',
-        'username' => 'root',
+        'username' => 'postgres',
         'password' => '',
         'pool' => [
             'min_connections' => 1,
@@ -54,14 +55,14 @@ class PgSQLConnection extends AbstractConnection
     public function reconnect(): bool
     {
         $connection = new PostgreSQL();
-        $connection->connect(
-            sprintf('host=%s port=%s dbname=%s user=%s password=%s'),
+        $connection->connect(sprintf(
+            'host=%s port=%s dbname=%s user=%s password=%s',
             $this->config['host'],
             $this->config['port'],
             $this->config['database'],
             $this->config['username'],
             $this->config['password']
-        );
+        ));
 
         $this->connection = $connection;
         $this->lastUseTime = microtime(true);
@@ -78,53 +79,84 @@ class PgSQLConnection extends AbstractConnection
 
     public function insert(string $query, array $bindings = []): int
     {
-        $query = rtrim($query, ' ;') . ' RETURNING id;';
-
         $statement = $this->prepare($query);
 
         $result = $this->connection->execute($statement, $bindings);
-        $arr = $this->connection->fetchRow($result);
-        var_dump($arr);
+        if ($result === false) {
+            throw new QueryException($this->connection->error);
+        }
 
-        return $statement->insert_id;
+        $row = $this->connection->fetchRow($result);
+        if (is_array($row)) {
+            return reset($row);
+        }
+
+        return 0;
     }
 
     public function execute(string $query, array $bindings = []): int
     {
-        // TODO: Implement execute() method.
+        $statement = $this->prepare($query);
+
+        $result = $this->connection->execute($statement, $bindings);
+        if ($result === false) {
+            throw new QueryException($this->connection->error);
+        }
+
+        return $this->connection->affectedRows($result);
     }
 
     public function exec(string $sql): int
     {
-        // TODO: Implement exec() method.
+        return $this->execute($sql);
     }
 
     public function query(string $query, array $bindings = []): array
     {
-        $result = $this->connection->query($query, $bindings);
-        $arr = $pg->fetchAll($result);
+        $statement = $this->prepare($query);
+
+        $result = $this->connection->execute($statement, $bindings);
+        if ($result === false) {
+            throw new QueryException($this->connection->error);
+        }
+
+        return $this->connection->fetchAll($result) ?: [];
     }
 
     public function fetch(string $query, array $bindings = [])
     {
-        // TODO: Implement fetch() method.
+        $records = $this->query($query, $bindings);
+
+        return array_shift($records);
     }
 
     public function call(string $method, array $argument = [])
     {
-        // TODO: Implement call() method.
+        switch ($method) {
+            case 'beginTransaction':
+                return $this->connection->query('BEGIN');
+            case 'rollBack':
+                return $this->connection->query('ROLLBACK');
+            case 'commit':
+                return $this->connection->query('COMMIT');
+        }
+
+        return $this->connection->{$method}(...$argument);
     }
 
     public function run(Closure $closure)
     {
-        // TODO: Implement run() method.
+        return $closure->call($this, $this->connection);
     }
 
     protected function prepare(string $query): string
     {
         $id = uniqid();
 
-        $this->connection->prepare($id, $query);
+        $res = $this->connection->prepare($id, $query);
+        if ($res === false) {
+            throw new QueryException($this->connection->error);
+        }
 
         return $id;
     }

@@ -51,8 +51,10 @@ abstract class AbstractTestCase extends TestCase
                 'default' => [
                     'driver' => PgSQLPool::class,
                     'host' => '127.0.0.1',
-                    'password' => 'root',
+                    'port' => 5432,
                     'database' => 'hyperf',
+                    'username' => 'postgres',
+                    'password' => 'root',
                     'pool' => [
                         'max_connections' => 20,
                     ],

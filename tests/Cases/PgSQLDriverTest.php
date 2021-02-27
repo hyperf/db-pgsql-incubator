@@ -14,6 +14,7 @@ namespace HyperfTest\DB\PgSQL\Cases;
 use Hyperf\DB\DB;
 use Hyperf\DB\PgSQL\PgSQLPool;
 use Hyperf\DB\Pool\PoolFactory;
+use Swoole\Coroutine\PostgreSQL;
 
 /**
  * @internal
@@ -27,7 +28,7 @@ class PgSQLDriverTest extends AbstractTestCase
     {
         $db = $this->getContainer()->get(DB::class);
 
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [2]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE ID = $1;', [2]);
 
         $this->assertSame('Hyperflex', $res['name']);
     }
@@ -36,7 +37,7 @@ class PgSQLDriverTest extends AbstractTestCase
     {
         $db = $this->getContainer()->get(DB::class);
 
-        $res = $db->query('SELECT * FROM `user` WHERE id = ?;', [2]);
+        $res = $db->query('SELECT * FROM USERS WHERE id = $1;', [2]);
 
         $this->assertSame('Hyperflex', $res[0]['name']);
     }
@@ -45,17 +46,19 @@ class PgSQLDriverTest extends AbstractTestCase
     {
         $db = $this->getContainer()->get(DB::class);
 
-        $sql = 'SELECT * FROM `user` WHERE id = ?;';
+        $sql = 'SELECT * FROM USERS WHERE ID = $1;';
         $bindings = [2];
-        $mode = \PDO::FETCH_OBJ;
-        $res = $db->run(function (\PDO $pdo) use ($sql, $bindings, $mode) {
-            $statement = $pdo->prepare($sql);
+        $res = $db->run(function (PostgreSQL $pdo) use ($sql, $bindings) {
+            $statement = $this->prepare($sql);
 
-            $this->bindValues($statement, $bindings);
+            $resource = $pdo->execute($statement, $bindings);
 
-            $statement->execute();
+            $result = [];
+            for ($i = 0; $i < $pdo->numRows($resource); ++$i) {
+                $result[] = $pdo->fetchObject($resource, $i);
+            }
 
-            return $statement->fetchAll($mode);
+            return $result;
         });
 
         $this->assertSame('Hyperflex', $res[0]->name);
@@ -65,16 +68,16 @@ class PgSQLDriverTest extends AbstractTestCase
     {
         $db = $this->getContainer()->get(DB::class);
 
-        $id = $db->insert('INSERT INTO `user` (`name`, `gender`) VALUES (?,?);', [$name = uniqid(), $gender = rand(0, 2)]);
+        $id = $db->insert('INSERT INTO USERS (NAME, GENDER) VALUES ($1,$2) RETURNING ID;', [$name = uniqid(), $gender = rand(0, 2)]);
         $this->assertTrue($id > 0);
 
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [$id]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE id = $1;', [$id]);
         $this->assertSame($name, $res['name']);
         $this->assertSame($gender, $res['gender']);
 
-        $res = $db->execute('UPDATE `user` SET `name` = ? WHERE id = ?', [$name = uniqid(), $id]);
+        $res = $db->execute('UPDATE USERS SET NAME = $1 WHERE ID = $2', [$name = uniqid(), $id]);
         $this->assertTrue($res > 0);
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [$id]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE ID = $1;', [$id]);
         $this->assertSame($name, $res['name']);
     }
 
@@ -82,20 +85,20 @@ class PgSQLDriverTest extends AbstractTestCase
     {
         $db = $this->getContainer()->get(DB::class);
         $db->beginTransaction();
-        $id = $db->insert('INSERT INTO `user` (`name`, `gender`) VALUES (?,?);', [$name = uniqid(), $gender = rand(0, 2)]);
+        $id = $db->insert('INSERT INTO USERS (NAME, GENDER) VALUES ($1,$2) RETURNING ID;', [$name = uniqid(), $gender = rand(0, 2)]);
         $this->assertTrue($id > 0);
         $db->commit();
 
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [$id]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE id = $1;', [$id]);
         $this->assertSame($name, $res['name']);
         $this->assertSame($gender, $res['gender']);
 
         $db->beginTransaction();
-        $id = $db->insert('INSERT INTO `user` (`name`, `gender`) VALUES (?,?);', [$name = uniqid(), $gender = rand(0, 2)]);
+        $id = $db->insert('INSERT INTO USERS (NAME, GENDER) VALUES ($1, $2) RETURNING ID;', [$name = uniqid(), $gender = rand(0, 2)]);
         $this->assertTrue($id > 0);
         $db->rollBack();
 
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [$id]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE ID = $1;', [$id]);
         $this->assertNull($res);
     }
 
@@ -116,24 +119,24 @@ class PgSQLDriverTest extends AbstractTestCase
     {
         $db = $this->getContainer()->get(DB::class);
         $db->beginTransaction();
-        $id = $db->insert('INSERT INTO `user` (`name`, `gender`) VALUES (?,?);', [$name = 'trans' . uniqid(), $gender = rand(0, 2)]);
+        $id = $db->insert('INSERT INTO USERS (NAME, GENDER) VALUES ($1, $2) RETURNING ID;', [$name = 'trans' . uniqid(), $gender = rand(0, 2)]);
         $this->assertTrue($id > 0);
         $db->beginTransaction();
-        $id2 = $db->insert('INSERT INTO `user` (`name`, `gender`) VALUES (?,?);', ['rollback' . uniqid(), rand(0, 2)]);
+        $id2 = $db->insert('INSERT INTO USERS (NAME, GENDER) VALUES ($1, $2) RETURNING ID;', ['rollback' . uniqid(), rand(0, 2)]);
         $this->assertTrue($id2 > 0);
         $db->rollBack();
         $db->commit();
 
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [$id2]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE ID = $1;', [$id2]);
         $this->assertNull($res);
-        $res = $db->fetch('SELECT * FROM `user` WHERE id = ?;', [$id]);
+        $res = $db->fetch('SELECT * FROM USERS WHERE ID = $1;', [$id]);
         $this->assertNotNull($res);
     }
 
     public function testStaticCall()
     {
         $this->getContainer();
-        $res = DB::fetch('SELECT * FROM `user` WHERE id = ?;', [1]);
+        $res = DB::fetch('SELECT * FROM USERS WHERE ID = $1;', [1]);
 
         $this->assertSame('Hyperf', $res['name']);
     }
