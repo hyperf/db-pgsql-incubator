@@ -4,6 +4,7 @@ on: [ push, pull_request ]
 
 env:
   SWOOLE_VERSION: '4.6.3'
+  SWOOLE_PGSQL_VERSION: '4.6.1'
   SWOW_VERSION: 'develop'
 
 jobs:
@@ -43,6 +44,17 @@ jobs:
           sudo make install
           sudo sh -c "echo extension=swoole > /etc/php/${{ matrix.php-version }}/cli/conf.d/swoole.ini"
           php --ri swoole
+          wget https://github.com/swoole/ext-postgresql/archive/v${SWOOLE_PGSQL_VERSION}.tar.gz -O pgsql.tar.gz
+          mkdir -p pgsql
+          tar -xf pgsql.tar.gz -C pgsql --strip-components=1
+          rm pgsql.tar.gz
+          cd pgsql
+          phpize
+          ./configure
+          make -j$(nproc)
+          sudo make install
+          sudo sh -c "echo extension=swoole_postgresql.so >> /etc/php/${{ matrix.php-version }}/cli/conf.d/swoole.ini"
+          php --ri swoole_postgresql
       - name: Setup Swow
         if: ${{ matrix.engine == 'swow' }}
         run: |
