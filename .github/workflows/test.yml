@@ -26,6 +26,8 @@ jobs:
           tools: phpize
           ini-values: opcache.enable_cli=1
           coverage: none
+      - name: Setup PgSQL
+        run: docker run --name pgsql -p 5432:5432 -e POSTGRES_PASSWORD=root --rm -d postgres
       - name: Setup Swoole
         if: ${{ matrix.engine == 'swoole' }}
         run: |

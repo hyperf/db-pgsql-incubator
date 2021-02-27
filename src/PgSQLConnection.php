@@ -14,6 +14,7 @@ namespace Hyperf\DB\PgSQL;
 use Closure;
 use Hyperf\DB\AbstractConnection;
 use Hyperf\DB\Exception\QueryException;
+use Hyperf\DB\Exception\RuntimeException;
 use Hyperf\Pool\Pool;
 use Psr\Container\ContainerInterface;
 use Swoole\Coroutine\PostgreSQL;
@@ -32,7 +33,7 @@ class PgSQLConnection extends AbstractConnection
         'driver' => PgSQLPool::class,
         'host' => '127.0.0.1',
         'port' => 5432,
-        'database' => 'hyperf',
+        'database' => 'postgres',
         'username' => 'postgres',
         'password' => '',
         'pool' => [
@@ -55,7 +56,7 @@ class PgSQLConnection extends AbstractConnection
     public function reconnect(): bool
     {
         $connection = new PostgreSQL();
-        $connection->connect(sprintf(
+        $result = $connection->connect(sprintf(
             'host=%s port=%s dbname=%s user=%s password=%s',
             $this->config['host'],
             $this->config['port'],
@@ -63,6 +64,10 @@ class PgSQLConnection extends AbstractConnection
             $this->config['username'],
             $this->config['password']
         ));
+
+        if ($result === false) {
+            throw new RuntimeException($connection->error);
+        }
 
         $this->connection = $connection;
         $this->lastUseTime = microtime(true);
@@ -108,7 +113,9 @@ class PgSQLConnection extends AbstractConnection
 
     public function exec(string $sql): int
     {
-        return $this->execute($sql);
+        $result = $this->connection->query($sql);
+
+        return $this->connection->affectedRows($result);
     }
 
     public function query(string $query, array $bindings = []): array

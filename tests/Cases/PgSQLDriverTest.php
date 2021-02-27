@@ -107,7 +107,7 @@ class PgSQLDriverTest extends AbstractTestCase
         $factory = $this->getContainer()->get(PoolFactory::class);
         $pool = $factory->getPool('default');
 
-        $this->assertSame('hyperf', $pool->getConfig()['database']);
+        $this->assertSame('postgres', $pool->getConfig()['database']);
         $this->assertSame([], $pool->getConfig()['options']);
 
         $connection = $pool->get();

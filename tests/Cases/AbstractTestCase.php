@@ -33,7 +33,23 @@ use PHPUnit\Framework\TestCase;
  */
 abstract class AbstractTestCase extends TestCase
 {
+    public static $installed = false;
+
     protected $driver = 'pdo';
+
+    protected function setUp(): void
+    {
+        if (self::$installed === false) {
+            try {
+                $db = $this->getContainer()->get(DB::class);
+                $ret = $db->exec("CREATE TABLE IF NOT EXISTS USERS(ID serial PRIMARY KEY NOT NULL, NAME TEXT NOT NULL DEFAULT '', GENDER INT NOT NULL DEFAULT 0);");
+                $db->exec("INSERT INTO USERS (NAME, GENDER) VALUES ('Hyperf',1), ('Hyperflex',1), ('Hidden',0);");
+            } catch (\Throwable $exception) {
+            }
+
+            self::$installed = false;
+        }
+    }
 
     protected function tearDown(): void
     {
@@ -52,7 +68,7 @@ abstract class AbstractTestCase extends TestCase
                     'driver' => PgSQLPool::class,
                     'host' => '127.0.0.1',
                     'port' => 5432,
-                    'database' => 'hyperf',
+                    'database' => 'postgres',
                     'username' => 'postgres',
                     'password' => 'root',
                     'pool' => [
