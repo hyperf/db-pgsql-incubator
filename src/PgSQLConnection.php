@@ -21,15 +21,9 @@ use Swoole\Coroutine\PostgreSQL;
 
 class PgSQLConnection extends AbstractConnection
 {
-    /**
-     * @var PostgreSQL
-     */
-    protected $connection;
+    protected ?PostgreSQL $connection;
 
-    /**
-     * @var array
-     */
-    protected $config = [
+    protected array $config = [
         'driver' => PgSQLPool::class,
         'host' => '127.0.0.1',
         'port' => 5432,
@@ -139,16 +133,12 @@ class PgSQLConnection extends AbstractConnection
 
     public function call(string $method, array $argument = [])
     {
-        switch ($method) {
-            case 'beginTransaction':
-                return $this->connection->query('BEGIN');
-            case 'rollBack':
-                return $this->connection->query('ROLLBACK');
-            case 'commit':
-                return $this->connection->query('COMMIT');
-        }
-
-        return $this->connection->{$method}(...$argument);
+        return match ($method) {
+            'beginTransaction' => $this->connection->query('BEGIN'),
+            'rollBack' => $this->connection->query('ROLLBACK'),
+            'commit' => $this->connection->query('COMMIT'),
+            default => $this->connection->{$method}(...$argument),
+        };
     }
 
     public function run(Closure $closure)
