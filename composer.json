@@ -18,14 +18,14 @@
         }
     },
     "require": {
-        "php": "^7.3|^8.0",
-        "hyperf/db": "^2.1|^3.0"
+        "php": ">=8.0",
+        "hyperf/db": "^3.0"
     },
     "require-dev": {
         "friendsofphp/php-cs-fixer": "^3.0",
-        "hyperf/di": "^2.1|^3.0",
-        "hyperf/testing": "^2.1|^3.0",
-        "hyperf/utils": "^2.1|^3.0",
+        "hyperf/di": "^3.0",
+        "hyperf/testing": "^3.0",
+        "hyperf/utils": "^3.0",
         "mockery/mockery": "^1.0",
         "phpstan/phpstan": "^0.12|^1.8",
         "phpunit/phpunit": ">=7.0",
